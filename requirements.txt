@@ -1,0 +1,4 @@
+flet
+pyperclip
+humanize
+pyinstaller
