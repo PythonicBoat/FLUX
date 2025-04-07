@@ -1,0 +1,59 @@
+@startuml FLUX Architecture
+
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+
+package "FLUX File Transfer System" {
+  [NetworkManager] as network
+  [CryptoManager] as crypto
+  [CompressionManager] as compression
+  [UIManager] as ui
+  database "TransferRegistry" as registry
+}
+
+cloud "Network" {
+  [Sender] as sender
+  [Receiver] as receiver
+}
+
+interface "User Interface" as user_interface
+interface "Socket Connection" as socket
+
+ui -up-> user_interface
+ui --> network : initiates transfer
+network --> registry : manages transfers
+network --> crypto : encrypts/decrypts
+network --> compression : compresses/decompresses
+
+network -down-> socket
+socket --> sender
+socket --> receiver
+
+note right of network
+  Handles:
+  - Transfer code generation
+  - Connection management
+  - Progress tracking
+end note
+
+note right of crypto
+  Provides:
+  - Key derivation
+  - Data encryption
+  - Data decryption
+end note
+
+note right of compression
+  Manages:
+  - File compression
+  - File decompression
+end note
+
+note right of registry
+  Stores:
+  - Active transfers
+  - Transfer codes
+  - Transfer status
+end note
+
+@enduml

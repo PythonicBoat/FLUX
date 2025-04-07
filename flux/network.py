@@ -35,7 +35,19 @@ def register_transfer(transfer_id: str, code: str) -> str:
 
 def get_transfer_by_code(code: str) -> Optional[dict]:
     """Get transfer information by code"""
-    return transfer_codes.get(code)
+    if not code or not isinstance(code, str) or len(code) != CODE_LENGTH or not code.isdigit():
+        return None
+    
+    transfer_info = transfer_codes.get(code)
+    if not transfer_info:
+        return None
+        
+    # Check if transfer code has expired (10 minutes)
+    if time.time() - transfer_info['timestamp'] > 600:
+        del transfer_codes[code]
+        return None
+        
+    return transfer_info
 
 def get_local_ip() -> str:
     """Get the local IP address of the machine"""
@@ -54,6 +66,9 @@ def send_file(file_path: str, password: str, progress_callback: Optional[Callabl
     transfer_code = generate_transfer_code()
     file_name = os.path.basename(file_path)
     file_size = os.path.getsize(file_path)
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File {file_path} not found")
     
     # Compress the file
     compressed_path = compress_file(file_path)
@@ -88,18 +103,35 @@ def send_file(file_path: str, password: str, progress_callback: Optional[Callabl
         progress_callback(transfer_id, 0, f"Waiting for receiver... Transfer Code: {transfer_code}")
     
     try:
-        # Wait for receiver to connect
+        # Wait for receiver to connect with timeout
+        wait_start = time.time()
         while transfer_codes[transfer_code]['status'] == 'waiting':
+            if time.time() - wait_start > 300:  # 5 minutes timeout
+                raise Exception("Receiver connection timeout")
             time.sleep(0.5)
             
         if transfer_codes[transfer_code]['status'] != 'connected':
             raise Exception("Transfer cancelled or expired")
             
         receiver_info = transfer_codes[transfer_code]
-        s = receiver_info.get('socket')
         
-        if not s:
-            raise Exception("Connection lost")
+        # Create sender socket and connect to receiver with retry
+        max_retries = 3
+        retry_delay = 2
+        for attempt in range(max_retries):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(30)  # Set connection timeout
+                s.connect((get_local_ip(), SERVER_PORT))
+                s.settimeout(None)  # Reset timeout for data transfer
+                break
+            except (socket.timeout, ConnectionRefusedError) as e:
+                s.close()
+                if attempt == max_retries - 1:
+                    raise Exception(f"Failed to connect after {max_retries} attempts: {str(e)}")
+                if progress_callback:
+                    progress_callback(transfer_id, 0, f"Connection attempt {attempt + 1} failed, retrying...")
+                time.sleep(retry_delay)
         
         # Send metadata
         s.sendall(json.dumps(metadata).encode() + b"\n")
@@ -151,28 +183,58 @@ def start_receiver_server(save_dir: str, password: str, transfer_code: str,
                          progress_callback: Optional[Callable] = None) -> socket.socket:
     """Start receiving files using a transfer code"""
     try:
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
+            
         transfer_info = get_transfer_by_code(transfer_code)
         if not transfer_info:
             raise Exception("Invalid transfer code")
             
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('0.0.0.0', SERVER_PORT))
-        s.listen(1)
+        # Create and configure receiver socket with retry mechanism
+        max_bind_retries = 3
+        bind_retry_delay = 2
+        last_error = None
+        
+        for bind_attempt in range(max_bind_retries):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.settimeout(60)  # Set socket timeout
+                local_ip = '0.0.0.0'  # Listen on all network interfaces
+                s.bind((local_ip, SERVER_PORT))
+                s.listen(1)
+                break
+            except socket.error as e:
+                last_error = e
+                if bind_attempt < max_bind_retries - 1:
+                    if progress_callback:
+                        progress_callback(None, 0, f"Bind attempt {bind_attempt + 1} failed, retrying...")
+                    time.sleep(bind_retry_delay)
+                    continue
+                raise Exception(f"Failed to bind socket after {max_bind_retries} attempts: {str(e)}")
         
         transfer_info['status'] = 'connected'
         transfer_info['socket'] = s
+        transfer_info['socket_active'] = True
+        
+        if progress_callback:
+            progress_callback(None, 0, "Waiting for sender to connect...")
+
         
         def handle_client(client_socket: socket.socket, client_address: tuple):
             transfer_id = None
             try:
+                client_socket.settimeout(30)  # Set timeout for receiving metadata
                 # Receive metadata
                 metadata_bytes = b""
                 while b"\n" not in metadata_bytes:
-                    chunk = client_socket.recv(BUFFER_SIZE)
-                    if not chunk:
-                        return
-                    metadata_bytes += chunk
+                    try:
+                        chunk = client_socket.recv(BUFFER_SIZE)
+                        if not chunk:
+                            raise Exception("Connection closed by sender")
+                        metadata_bytes += chunk
+                    except socket.timeout:
+                        raise Exception("Timeout while receiving metadata")
                 
                 metadata_str, remaining_data = metadata_bytes.split(b"\n", 1)
                 metadata = json.loads(metadata_str.decode())
@@ -208,14 +270,18 @@ def start_receiver_server(save_dir: str, password: str, transfer_code: str,
                         pass
                 
                 with open(temp_compressed_path, 'ab') as f:
-                    while bytes_received < compressed_size:
+                    client_socket.settimeout(60)  # Set longer timeout for file transfer
+                while bytes_received < compressed_size:
+                    try:
                         chunk = client_socket.recv(BUFFER_SIZE)
                         if not chunk:
-                            break
+                            raise Exception("Connection closed unexpectedly")
                         
                         decrypted_chunk = decrypt_data(chunk, key)
                         f.write(decrypted_chunk)
                         bytes_received += len(decrypted_chunk)
+                    except socket.timeout:
+                        raise Exception("Timeout while receiving file data")
                         
                         progress = int((bytes_received / compressed_size) * 100)
                         active_transfers[transfer_id]["progress"] = progress
@@ -239,17 +305,36 @@ def start_receiver_server(save_dir: str, password: str, transfer_code: str,
                         progress_callback(transfer_id, 0, f"Error: {str(e)}")
             
             finally:
-                client_socket.close()
+                try:
+                    client_socket.shutdown(socket.SHUT_RDWR)
+                    client_socket.close()
+                except:
+                    pass
+                if transfer_id in active_transfers and active_transfers[transfer_id]['status'] == 'completed':
+                    transfer_info['socket_active'] = False
+                    try:
+                        s.shutdown(socket.SHUT_RDWR)
+                        s.close()
+                    except:
+                        pass
         
         def accept_connections():
-            while True:
-                client, addr = s.accept()
-                client_handler = threading.Thread(
-                    target=handle_client,
-                    args=(client, addr)
-                )
-                client_handler.daemon = True
-                client_handler.start()
+            while transfer_info.get('socket_active', False):
+                try:
+                    if not transfer_info.get('socket_active'):
+                        break
+                    client, addr = s.accept()
+                    client_handler = threading.Thread(
+                        target=handle_client,
+                        args=(client, addr)
+                    )
+                    client_handler.daemon = True
+                    client_handler.start()
+                except Exception as e:
+                    if transfer_info.get('socket_active'):
+                        print(f"Accept connection error: {str(e)}")
+                        transfer_info['socket_active'] = False
+                    break
         
         accept_thread = threading.Thread(target=accept_connections)
         accept_thread.daemon = True

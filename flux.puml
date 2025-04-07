@@ -1,0 +1,75 @@
+@startuml Flux Application Architecture
+
+!define DIRECTION top to bottom direction
+
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+class NetworkManager {
+    + BUFFER_SIZE: int
+    + SERVER_PORT: int
+    + active_transfers: Dict
+    + transfer_codes: Dict
+    + generate_transfer_code(): str
+    + register_transfer(transfer_id: str, code: str): str
+    + get_transfer_by_code(code: str): Optional[dict]
+    + get_local_ip(): str
+    + send_file(file_path: str, password: str, progress_callback: Callable): bool
+    + start_receiver_server(save_dir: str, password: str, transfer_code: str, progress_callback: Callable): socket
+}
+
+class CryptoManager {
+    + encrypt_data(data: bytes, key: bytes): bytes
+    + decrypt_data(data: bytes, key: bytes): bytes
+    + derive_key(password: str, salt: bytes): bytes
+}
+
+class CompressionManager {
+    + compress_file(file_path: str): str
+    + decompress_file(compressed_path: str, output_path: str): None
+}
+
+class UIManager {
+    + progress_callback(transfer_id: str, progress: int, message: str): None
+    + display_transfer_code(code: str): None
+    + update_transfer_status(transfer_id: str, status: str): None
+}
+
+class TransferSession {
+    + transfer_id: str
+    + file_name: str
+    + status: str
+    + progress: int
+    + start_time: float
+    + transfer_code: str
+}
+
+NetworkManager -down-> CryptoManager: uses
+NetworkManager -down-> CompressionManager: uses
+NetworkManager -down-> UIManager: notifies
+NetworkManager "1" *-down- "*" TransferSession: manages
+
+note bottom of NetworkManager
+  Handles file transfer operations
+  using secure socket connections
+end note
+
+note bottom of CryptoManager
+  Provides encryption/decryption
+  and key derivation services
+end note
+
+note bottom of CompressionManager
+  Handles file compression
+  and decompression
+end note
+
+note bottom of UIManager
+  Manages user interface
+  and progress updates
+end note
+
+@enduml
