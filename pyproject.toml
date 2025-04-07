@@ -11,7 +11,8 @@ authors = [
     { name = "Yashvardhan Singh", email = "vs21yash@gmail.com" }
 ]
 dependencies = [
-    "flet",
+    "cryptography>=44.0.2",
+    "flet[all]",
     "humanize",
     "pyinstaller",
     "pyperclip>=1.9.0",
