@@ -15,11 +15,11 @@
 </div>
 
 ## Table of Contents
-- [Overview](#flux)
-- [Getting Started](#features)
+- [Overview](#overview)
+- [Getting Started]()
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Usage](#usage)
+  - [Usage](#build)
 - [Features](#features)
 - [Contributing](#contributing)
 - [License](#license)
@@ -41,41 +41,52 @@ Build FLUX from the source and install dependencies using the following steps:
 <ol>
 <li class="my-0">
 <p><strong>Clone the repository:</strong></p>
-<pre><code class="language-sh">❯ git clone https://github.com/PythonicBoat/FLUX
+<pre><code class="language-sh">git clone https://github.com/pythonicboat/flux.git
 </code></pre>
 </li>
 <li class="my-0">
 <p><strong>Navigate to the project directory:</strong></p>
-<pre><code class="language-sh">❯ cd FLUX
+<pre><code class="language-sh">cd FLUX
 </code></pre>
 </li>
 <li class="my-0">
 <p><strong>Install the dependencies:</strong></p>
+
+Using [uv](https://docs.astral.sh/uv/getting-started/installation/):
+
+```bash
+uv init
+```
+```bash
+uv add <package>
+```
 </li>
 </ol>
 
-Using uv:
+### Build
+To build FLUX for your system, use the following command:
 
 ```bash
-❯ uv init
-```
-
-```bash
-❯ uv install
+uv build
 ```
 
 ### Usage
 To run FLUX, use the following command:
 
 ```bash
-❯ uv run main.py
+uv run main.py
 ```
 
-### Build
-To build FLUX, use the following command:
+### Contributing
+Contributions are welcome! If you have suggestions for improvements or new features.
+1)  Open an [issue](https://github.com/pythonicboat/issues) 
+2) To fix a bug or work on an issue, comment on the issue.
+3) Once a maintainer approves your request, you can contribute.
+4) Before committing, ensure your code adheres to the project's standards.
+5) Submit a [pull request](https://github.com/pythonicboat/pulls) for an existing issue only!
+6) Adhere to Project's [Code of Conduct](https://github.com/PythonicBoat/FLUX?tab=coc-ov-file)
 
-##
-        uv build
-
+### License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 <div align="left" class=""><a href="#top">⬆ Return</a></div>
