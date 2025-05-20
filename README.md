@@ -77,9 +77,20 @@ To run FLUX, use the following command:
 uv run main.py
 ```
 
+### Features
+Coming soon! FLUX is currently in development, and we are working on adding more features. Here are some of the features we plan to implement:
+- **File Transfer**: Securely transfer files between devices.
+- **File Management**: Manage files with ease, including renaming, moving, and deleting files.
+- **Real-time Progress Tracking**: Monitor the progress of file transfers in real-time.
+- **Cross-Platform Compatibility**: FLUX will work seamlessly on various operating systems, including Windows, macOS, and Linux.
+- **User-Friendly Interface**: A simple and intuitive interface for easy navigation and file management.
+- **Modular Architecture**: FLUX will be built with a modular architecture, making it easy to maintain and extend.
+- **Open Source**: FLUX will be open source, allowing developers to contribute and collaborate on the project.
+- **Documentation**: Comprehensive documentation to help users get started and make the most of FLUX's features.
+
 ### Contributing
 Contributions are welcome! If you have suggestions for improvements or new features.
-1)  Open an [issue](https://github.com/pythonicboat/issues) 
+1)  Open an [issue](https://github.com/pythonicboat/issues)
 2) To fix a bug or work on an issue, comment on the issue.
 3) Once a maintainer approves your request, you can contribute.
 4) Before committing, ensure your code adheres to the project's standards.
