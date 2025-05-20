@@ -52,12 +52,18 @@ class FluxApp:
         """Update the receiver server with current settings"""
         if self.receiver_server:
             self.receiver_server.close()
+            self.receiver_server = None
         
         code = self.ui.transfer_code_field.value.strip()
-        if code and len(code) == 6:  # CODE_LENGTH from network module
-            self.receiver_server = start_receiver_server(
-                self.save_directory,
-                password=self.transfer_password,
-                transfer_code=code,
-                progress_callback=self.ui.update_transfer_progress
-            )
+        # Only attempt to start receiver when we have a complete code and password
+        if code and len(code) == 6 and self.transfer_password:  # CODE_LENGTH from network module
+            try:
+                self.receiver_server = start_receiver_server(
+                    self.save_directory,
+                    password=self.transfer_password,
+                    transfer_code=code,
+                    progress_callback=self.ui.update_transfer_progress
+                )
+            except Exception as e:
+                # Silently handle validation errors during typing
+                pass
